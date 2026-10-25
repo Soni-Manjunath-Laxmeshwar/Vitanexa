@@ -1,0 +1,456 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  emailVerified   DateTime?
+  name            String?
+  passwordHash    String?
+  role            String    @default("PATIENT") // PATIENT, DOCTOR, HOSPITAL_ADMIN, LAB_ADMIN, PHARMACY_ADMIN, SYSTEM_ADMIN
+  isActive        Boolean   @default(true)
+  isVerified      Boolean   @default(false)
+  avatar          String?
+  phone           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  patient         Patient?
+  doctor          Doctor?
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  sessions        Session[]
+  accounts        Account[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+model Patient {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  dateOfBirth      DateTime?
+  gender           String?
+  bloodGroup       String?
+  address          String?
+  city             String?
+  state            String?
+  country          String?   @default("India")
+  pincode          String?
+  allergies        String?
+  chronicConditions String?
+  emergencyName    String?
+  emergencyPhone   String?
+  emergencyRelation String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments     Appointment[]
+  medicalRecords   MedicalRecord[]
+  prescriptions    Prescription[]
+  labReports       LabReport[]
+  healthMetrics    HealthMetric[]
+  emergencyContacts EmergencyContact[]
+  orders           Order[]
+}
+
+model Specialty {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+
+  doctors     DoctorSpecialty[]
+}
+
+model Doctor {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  licenseNumber     String    @unique
+  qualifications    String?
+  experience        Int?      @default(0)
+  bio               String?
+  consultationFee   Float?    @default(500)
+  onlineConsultationFee Float? @default(300)
+  isAvailableOnline Boolean   @default(true)
+  languages         String?
+  hospitalId        String?
+  rating            Float?    @default(0)
+  totalRatings      Int?      @default(0)
+  isVerified        Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital          Hospital? @relation(fields: [hospitalId], references: [id])
+  specialties       DoctorSpecialty[]
+  availability      DoctorAvailability[]
+  appointments      Appointment[]
+  prescriptions     Prescription[]
+  consultationNotes ConsultationNote[]
+}
+
+model DoctorSpecialty {
+  doctorId    String
+  specialtyId String
+  doctor      Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  specialty   Specialty @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+  @@id([doctorId, specialtyId])
+}
+
+model DoctorAvailability {
+  id          String   @id @default(cuid())
+  doctorId    String
+  dayOfWeek   Int      // 0=Sunday, 1=Monday ... 6=Saturday
+  startTime   String   // "09:00"
+  endTime     String   // "17:00"
+  slotDuration Int     @default(30) // minutes
+  isOnline    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  doctor      Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+}
+
+model Hospital {
+  id          String    @id @default(cuid())
+  name        String
+  type        String    @default("Hospital") // Hospital, Clinic, Nursing Home
+  licenseNo   String    @unique
+  address     String?
+  city        String?
+  state       String?
+  country     String?   @default("India")
+  pincode     String?
+  phone       String?
+  email       String?
+  website     String?
+  description String?
+  services    String?
+  adminUserId String?
+  isVerified  Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  doctors     Doctor[]
+  departments Department[]
+  appointments Appointment[]
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  hospitalId  String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+}
+
+model Appointment {
+  id              String    @id @default(cuid())
+  patientId       String
+  doctorId        String
+  hospitalId      String?
+  appointmentDate DateTime
+  startTime       String
+  endTime         String
+  type            String    @default("IN_PERSON") // IN_PERSON, ONLINE
+  status          String    @default("PENDING") // PENDING, CONFIRMED, IN_CONSULTATION, COMPLETED, CANCELLED, NO_SHOW
+  reason          String?
+  notes           String?
+  meetingLink     String?
+  fee             Float?
+  isPaid          Boolean   @default(false)
+  cancelledBy     String?
+  cancelReason    String?
+  reminderSent    Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  patient         Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor          Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  hospital        Hospital? @relation(fields: [hospitalId], references: [id])
+  consultationNote ConsultationNote?
+  prescription    Prescription?
+}
+
+model ConsultationNote {
+  id             String      @id @default(cuid())
+  appointmentId  String      @unique
+  doctorId       String
+  chiefComplaint String?
+  history        String?
+  examination    String?
+  diagnosis      String?
+  plan           String?
+  followUpDate   DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  appointment    Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctor         Doctor      @relation(fields: [doctorId], references: [id])
+}
+
+model MedicalRecord {
+  id           String   @id @default(cuid())
+  patientId    String
+  title        String
+  description  String?
+  documentType String   // PRESCRIPTION, BLOOD_TEST, XRAY, SCAN, DISCHARGE_SUMMARY, OTHER
+  fileUrl      String?
+  fileName     String?
+  fileSize     Int?
+  mimeType     String?
+  doctorId     String?
+  hospitalId   String?
+  specialty    String?
+  recordDate   DateTime @default(now())
+  isShared     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model Prescription {
+  id             String       @id @default(cuid())
+  appointmentId  String?      @unique
+  patientId      String
+  doctorId       String
+  diagnosis      String?
+  notes          String?
+  validUntil     DateTime?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  appointment    Appointment? @relation(fields: [appointmentId], references: [id])
+  patient        Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor         Doctor       @relation(fields: [doctorId], references: [id])
+  medicines      PrescriptionMedicine[]
+}
+
+model Medicine {
+  id          String   @id @default(cuid())
+  name        String
+  genericName String?
+  category    String?
+  manufacturer String?
+  description String?
+  sideEffects String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  prescriptionMedicines PrescriptionMedicine[]
+  orderItems           OrderItem[]
+}
+
+model PrescriptionMedicine {
+  id             String     @id @default(cuid())
+  prescriptionId String
+  medicineId     String?
+  medicineName   String
+  dosage         String
+  frequency      String
+  duration       String?
+  instructions   String?
+  quantity       Int?       @default(1)
+
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicine       Medicine?    @relation(fields: [medicineId], references: [id])
+}
+
+model Laboratory {
+  id          String    @id @default(cuid())
+  name        String
+  licenseNo   String    @unique
+  address     String?
+  city        String?
+  state       String?
+  phone       String?
+  email       String?
+  adminUserId String?
+  isVerified  Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  labTests    LabTest[]
+  labReports  LabReport[]
+}
+
+model LabTest {
+  id              String   @id @default(cuid())
+  laboratoryId    String
+  name            String
+  description     String?
+  category        String?
+  price           Float
+  preparationInfo String?
+  turnaroundTime  String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  laboratory      Laboratory @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
+  labReports      LabReport[]
+}
+
+model LabReport {
+  id             String    @id @default(cuid())
+  patientId      String
+  laboratoryId   String
+  labTestId      String?
+  testName       String
+  status         String    @default("PENDING") // PENDING, PROCESSING, READY, DELIVERED
+  reportDate     DateTime?
+  fileUrl        String?
+  fileName       String?
+  results        String?
+  referenceRange String?
+  interpretation String?
+  isShared       Boolean   @default(false)
+  sharedWithDoctors String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  patient        Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  laboratory     Laboratory @relation(fields: [laboratoryId], references: [id])
+  labTest        LabTest?   @relation(fields: [labTestId], references: [id])
+}
+
+model Pharmacy {
+  id          String    @id @default(cuid())
+  name        String
+  licenseNo   String    @unique
+  address     String?
+  city        String?
+  state       String?
+  phone       String?
+  email       String?
+  adminUserId String?
+  isVerified  Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  orders      Order[]
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  patientId    String
+  pharmacyId   String?
+  prescriptionId String?
+  status       String      @default("PENDING") // PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED
+  totalAmount  Float?
+  address      String?
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  patient      Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  pharmacy     Pharmacy?   @relation(fields: [pharmacyId], references: [id])
+  items        OrderItem[]
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  medicineId String?
+  name       String
+  quantity   Int
+  price      Float
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  medicine   Medicine? @relation(fields: [medicineId], references: [id])
+}
+
+model HealthMetric {
+  id          String   @id @default(cuid())
+  patientId   String
+  type        String   // BLOOD_PRESSURE, BLOOD_GLUCOSE, WEIGHT, HEART_RATE, TEMPERATURE, OXYGEN_SATURATION
+  value       String
+  unit        String?
+  notes       String?
+  measuredAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model EmergencyContact {
+  id         String   @id @default(cuid())
+  patientId  String
+  name       String
+  phone      String
+  relation   String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  message    String
+  type       String   // APPOINTMENT, PRESCRIPTION, LAB_REPORT, MESSAGE, REMINDER, SYSTEM, EMERGENCY
+  isRead     Boolean  @default(false)
+  actionUrl  String?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  details    String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id])
+}
