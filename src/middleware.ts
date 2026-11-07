@@ -1,5 +1,8 @@
-import { auth } from '@/auth'
+import NextAuth from 'next-auth'
+import { authConfig } from '@/auth.config'
 import { NextResponse } from 'next/server'
+
+const { auth } = NextAuth(authConfig)
 
 const protectedRoutes = ['/patient', '/doctor', '/hospital', '/lab', '/pharmacy', '/admin']
 const authRoutes = ['/login', '/register', '/forgot-password']
